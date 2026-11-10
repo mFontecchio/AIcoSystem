@@ -1,0 +1,3 @@
+# Catalog signature schema (documentation)
+# Each *.toml file contains [[signatures]] with:
+# id, owner, linux_paths, markers, movable

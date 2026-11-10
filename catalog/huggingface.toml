@@ -1,0 +1,6 @@
+[[signatures]]
+id = "huggingface-hub"
+owner = "huggingface"
+linux_paths = ["~/.cache/huggingface/hub"]
+markers = ["models--"]
+movable = true

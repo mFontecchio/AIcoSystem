@@ -1,0 +1,20 @@
+[[signatures]]
+id = "pip-cache"
+owner = "pip"
+linux_paths = ["~/.cache/pip"]
+markers = []
+movable = false
+
+[[signatures]]
+id = "uv-cache"
+owner = "uv"
+linux_paths = ["~/.cache/uv", "~/.local/share/uv"]
+markers = []
+movable = false
+
+[[signatures]]
+id = "conda-user"
+owner = "conda"
+linux_paths = ["~/miniconda3", "~/anaconda3", "~/miniforge3", "~/micromamba"]
+markers = ["conda-meta"]
+movable = false

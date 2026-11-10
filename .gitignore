@@ -1,0 +1,12 @@
+/target/
+**/target/
+node_modules/
+dist/
+.aico-old/
+*.db
+*.db-*
+.DS_Store
+.env
+.idea/
+.vscode/
+.github/bootstrap-state.json

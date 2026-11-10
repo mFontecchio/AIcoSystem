@@ -1,0 +1,15 @@
+[package]
+name = "aico-ops"
+description = "Journal, trash, move, and reports for AIcoSystem"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+aico-core = { workspace = true }
+aico-platform = { workspace = true }

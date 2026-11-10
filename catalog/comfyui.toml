@@ -1,0 +1,6 @@
+[[signatures]]
+id = "comfyui-models"
+owner = "comfyui"
+linux_paths = ["**/ComfyUI/models", "**/comfyui/models"]
+markers = ["checkpoints"]
+movable = true

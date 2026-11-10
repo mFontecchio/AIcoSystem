@@ -1,0 +1,981 @@
+# AIcoSystem GitHub issues — consumed by scripts/bootstrap-board.sh
+version: 1
+
+milestones:
+  - name: M0 Foundation
+    description: Docs, ADRs, workspace, CI, catalog spike
+  - name: M1 Read-only scan CLI
+    description: Volumes, walker, catalog, aico scan --json
+  - name: M2 Duplicates and dual boot
+    description: Hash pipeline, NTFS read-only
+  - name: M3 Desktop viewer
+    description: Tauri UI and IPC
+  - name: M4 Reversible cleanup
+    description: Journal, trash, Activity UI
+  - name: M5 Move and v0.1 release
+    description: Symlink move, packaging
+  - name: M6 Windows native
+    description: Post-v0.1 Windows parity
+  - name: Icebox
+    description: Future work
+
+epics:
+  - key: E-M0
+    title: "Epic: M0 Foundation and decisions"
+    milestone: M0 Foundation
+    labels: [type:epic, priority:p0, platform:both]
+  - key: E-M1
+    title: "Epic: M1 Read-only scan engine"
+    milestone: M1 Read-only scan CLI
+    labels: [type:epic, priority:p0, platform:linux]
+  - key: E-M2
+    title: "Epic: M2 Hashing and foreign NTFS"
+    milestone: M2 Duplicates and dual boot
+    labels: [type:epic, priority:p0, platform:linux]
+  - key: E-M3
+    title: "Epic: M3 Desktop viewer"
+    milestone: M3 Desktop viewer
+    labels: [type:epic, priority:p0, platform:both]
+  - key: E-M4
+    title: "Epic: M4 Reversible cleanup"
+    milestone: M4 Reversible cleanup
+    labels: [type:epic, priority:p0, platform:linux]
+  - key: E-M5
+    title: "Epic: M5 Move with link and release"
+    milestone: M5 Move and v0.1 release
+    labels: [type:epic, priority:p0, platform:linux]
+  - key: E-M6
+    title: "Epic: M6 Windows-native operations"
+    milestone: M6 Windows native
+    labels: [type:epic, priority:p1, platform:windows]
+  - key: E-ICE
+    title: "Epic: Icebox future work"
+    milestone: Icebox
+    labels: [type:epic, priority:p2, platform:both]
+
+issues:
+  - epic: E-M0
+    title: "Add Apache-2.0 LICENSE and README"
+    size: S
+    labels: [type:task, area:docs, priority:p0, platform:both]
+    fr: []
+    body: |
+      ## Context
+      Repo needs license and contributor-facing readme.
+      ## Contract
+      LICENSE file; README with build deps for Fedora.
+      ## Acceptance
+      Given a clone, When README is followed, Then cargo metadata resolves.
+      ## Platforms
+      both
+      ## Depends on
+      none
+      ## Out of scope
+      packaging
+  - epic: E-M0
+    title: "Cargo workspace and four crates skeleton"
+    size: M
+    labels: [type:feature, area:ci, priority:p0, platform:both]
+    fr: []
+    body: |
+      ## Context
+      ADR 0009 crate layout.
+      ## Contract
+      aico-core, aico-ops, aico-platform, aico-cli, apps/desktop placeholder.
+      ## Acceptance
+      Given workspace root, When `cargo build --workspace`, Then all crates compile.
+      ## Platforms
+      both
+      ## Depends on
+      none
+      ## Out of scope
+      Tauri UI logic
+  - epic: E-M0
+    title: "CI workflow Fedora container and Windows build"
+    size: M
+    labels: [type:feature, area:ci, priority:p0, platform:both]
+    fr: [NFR-06]
+    body: |
+      ## Context
+      Core tests on Fedora; Tauri on ubuntu-latest; windows-latest compile.
+      ## Contract
+      .github/workflows/ci.yml with cargo-deny.
+      ## Acceptance
+      Given PR, When CI runs, Then linux core and windows build succeed.
+      ## Platforms
+      both
+      ## Depends on
+      workspace skeleton
+      ## Out of scope
+      release artifacts
+  - epic: E-M0
+    title: "Catalog TOML schema and initial signatures"
+    size: M
+    labels: [type:feature, area:catalog, priority:p0, platform:linux]
+    fr: [FR-02]
+    body: |
+      ## Context
+      Data-driven discovery per ADR 0009.
+      ## Contract
+      catalog/schema.toml doc; entries for HF, Ollama, pip, conda, venv, ComfyUI models.
+      ## Acceptance
+      Given catalog dir, When loader runs, Then >=10 signatures parse.
+      ## Platforms
+      linux
+      ## Depends on
+      aico-core
+      ## Out of scope
+      Windows path variants
+  - epic: E-M0
+    title: "Catalog spike shell script vs dua"
+    size: S
+    labels: [type:task, area:catalog, priority:p0, platform:linux]
+    fr: []
+    body: |
+      ## Context
+      Validate coverage before heavy Rust.
+      ## Contract
+      scripts/catalog-spike.sh outputs JSON sizes.
+      ## Acceptance
+      Given author machine, When spike runs, Then >=90% bytes of dua on catalog roots documented.
+      ## Platforms
+      linux
+      ## Depends on
+      catalog signatures
+      ## Out of scope
+      GUI
+  - epic: E-M0
+    title: "SQLite migrations and schema v1"
+    size: M
+    labels: [type:feature, area:scan, priority:p0, platform:both]
+    fr: [NFR-03]
+    body: |
+      ## Context
+      Seven tables per plan.
+      ## Contract
+      migrations for volumes, scan_runs, locations, file_hashes, operations, operation_steps, catalog_matches.
+      ## Acceptance
+      Given empty db, When migrate runs, Then user_version set; newer version refused.
+      ## Platforms
+      both
+      ## Depends on
+      aico-core
+      ## Out of scope
+      graph tables
+  - epic: E-M0
+    title: "FsRead trait and platform volume enumeration"
+    size: M
+    labels: [type:feature, area:platform, priority:p0, platform:linux]
+    fr: [FR-01]
+    body: |
+      ## Context
+      ADR 0003 volume classes.
+      ## Contract
+      VolumeClass enum; list mounts from mountinfo.
+      ## Acceptance
+      Given fixture mounts, When enumerate, Then foreign NTFS classified ForeignOs.
+      ## Platforms
+      linux
+      ## Depends on
+      aico-platform
+      ## Out of scope
+      Windows implementation
+  - epic: E-M0
+    title: "Publish product docs and ADRs to docs/"
+    size: S
+    labels: [type:docs, area:docs, priority:p0, platform:both]
+    fr: []
+    body: |
+      ## Context
+      Engineering source of truth.
+      ## Contract
+      prd-v1, glossary, vision, ADRs 0001-0010.
+      ## Acceptance
+      Given docs tree, When reviewed, Then no open config-rewrite in v0.1 scope.
+      ## Platforms
+      both
+      ## Depends on
+      none
+      ## Out of scope
+      RFC on GitHub wiki
+
+  - epic: E-M1
+    title: "Parallel directory walker with denylist"
+    size: L
+    labels: [type:feature, area:scan, priority:p0, platform:linux]
+    fr: [FR-03, FR-04]
+    body: |
+      ## Context
+      ignore-based walk; no symlink follow.
+      ## Contract
+      Exclude docker/podman stores, vhdx, system files.
+      ## Acceptance
+      Given fixture tree with symlink loop, When walk, Then completes without follow.
+      ## Platforms
+      linux
+      ## Depends on
+      FsRead, schema
+      ## Out of scope
+      Windows OneDrive placeholders
+  - epic: E-M1
+    title: "Catalog-driven location discovery"
+    size: M
+    labels: [type:feature, area:catalog, priority:p0, platform:linux]
+    fr: [FR-02, FR-08]
+    body: |
+      ## Context
+      Match markers and globs.
+      ## Contract
+      catalog_matches rows with confidence Confirmed/Likely.
+      ## Acceptance
+      Given fake ~/.ollama/models, When scan, Then ollama location recorded.
+      ## Platforms
+      linux
+      ## Depends on
+      catalog loader
+      ## Out of scope
+      process inspection
+  - epic: E-M1
+    title: "Size accounting apparent allocated reclaimable"
+    size: M
+    labels: [type:feature, area:scan, priority:p0, platform:linux]
+    fr: [FR-07]
+    body: |
+      ## Context
+      Btrfs and hardlink aware totals.
+      ## Contract
+      same-file inode dedup for reclaimable.
+      ## Acceptance
+      Given hardlink pair fixture, When aggregate, Then reclaimable counts once.
+      ## Platforms
+      linux
+      ## Depends on
+      walker
+      ## Out of scope
+      FIEMAP shared extents
+  - epic: E-M1
+    title: "Scan orchestration progress and cancellation"
+    size: M
+    labels: [type:feature, area:scan, priority:p0, platform:linux]
+    fr: [FR-09, NFR-05]
+    body: |
+      ## Context
+      Long scans on full disk.
+      ## Contract
+      scan_runs status; cancel flag checked per directory.
+      ## Acceptance
+      Given slow walk, When cancel, Then stops with partial coverage summary.
+      ## Platforms
+      linux
+      ## Depends on
+      walker
+      ## Out of scope
+      pause/resume
+  - epic: E-M1
+    title: "Index-first discovery conda HF ollama"
+    size: M
+    labels: [type:feature, area:catalog, priority:p0, platform:linux]
+    fr: [FR-03]
+    body: |
+      ## Context
+      Read environments.txt, HF refs layout, ollama manifests before walk.
+      ## Contract
+      Index phase populates locations before deep walk.
+      ## Acceptance
+      Given HF cache fixture, When index, Then models-- org paths found without full tree hash.
+      ## Platforms
+      linux
+      ## Depends on
+      catalog
+      ## Out of scope
+      running ollama CLI
+  - epic: E-M1
+    title: "GGUF and SafeTensors magic sniff"
+    size: S
+    labels: [type:feature, area:scan, priority:p0, platform:linux]
+    fr: []
+    body: |
+      ## Context
+      Categorize large files without full parse.
+      ## Contract
+      Header limits per ADR discussions.
+      ## Acceptance
+      Given tiny gguf fixture, When sniff, Then architecture field extracted.
+      ## Platforms
+      linux
+      ## Depends on
+      aico-core
+      ## Out of scope
+      ONNX pickle
+  - epic: E-M1
+    title: "CLI aico scan --json"
+    size: M
+    labels: [type:feature, area:scan, priority:p0, platform:linux]
+    fr: [FR-21]
+    body: |
+      ## Context
+      Headless report for tests and author use.
+      ## Contract
+      JSON schema documented in docs.
+      ## Acceptance
+      Given machine, When `aico scan --json`, Then stdout valid JSON with locations array.
+      ## Platforms
+      linux
+      ## Depends on
+      scan orchestration
+      ## Out of scope
+      pretty TUI
+  - epic: E-M1
+    title: "Coverage summary and inaccessible path log"
+    size: S
+    labels: [type:feature, area:scan, priority:p0, platform:linux]
+    fr: [FR-09]
+    body: |
+      ## Context
+      User trust in scan completeness.
+      ## Contract
+      EACCES paths in scan_runs metadata JSON.
+      ## Acceptance
+      Given unreadable dir fixture, When scan, Then listed in coverage.skipped.
+      ## Platforms
+      linux
+      ## Depends on
+      scan orchestration
+      ## Out of scope
+      UI
+
+  - epic: E-M2
+    title: "Staged hasher BLAKE3 and cache"
+    size: L
+    labels: [type:feature, area:hash, priority:p0, platform:linux]
+    fr: [FR-10, FR-11]
+    body: |
+      ## Context
+      ADR 0008 pipeline.
+      ## Contract
+      file_hashes cache key volume_uuid inode size mtime.
+      ## Acceptance
+      Given two-pass scan fixture, When second scan, Then no full rehash if unchanged.
+      ## Platforms
+      linux
+      ## Depends on
+      schema, locations
+      ## Out of scope
+      GPU hash
+  - epic: E-M2
+    title: "Duplicate group builder"
+    size: M
+    labels: [type:feature, area:hash, priority:p0, platform:linux]
+    fr: [FR-10]
+    body: |
+      ## Context
+      Present groups for UI/CLI.
+      ## Contract
+      Groups keyed by full hash; members list paths.
+      ## Acceptance
+      Given identical files fixture dup-groups, When build, Then one group two members.
+      ## Platforms
+      linux
+      ## Depends on
+      staged hasher
+      ## Out of scope
+      cross-OS merge
+  - epic: E-M2
+    title: "Claimed SHA-256 from Ollama HF blobs"
+    size: M
+    labels: [type:feature, area:hash, priority:p0, platform:linux]
+    fr: [FR-11]
+    body: |
+      ## Context
+      Avoid hashing when name is digest.
+      ## Contract
+      verify flag before delete authorization.
+      ## Acceptance
+      Given ollama blob name, When claim, Then matches after spot verify.
+      ## Platforms
+      linux
+      ## Depends on
+      hasher
+      ## Out of scope
+      auto-delete
+  - epic: E-M2
+    title: "Foreign NTFS read-only scan integration"
+    size: L
+    labels: [type:feature, area:platform, priority:p0, platform:linux]
+    fr: [FR-05, FR-06]
+    body: |
+      ## Context
+      ADR 0002 dual boot.
+      ## Contract
+      ForeignOs writes rejected; observed_from_os windows.
+      ## Acceptance
+      Given loop ntfs ro fixture, When scan, Then locations tagged foreign.
+      ## Platforms
+      linux
+      ## Depends on
+      volume enum
+      ## Out of scope
+      BitLocker unlock
+  - epic: E-M2
+    title: "NTFS skip reason detection hibernation BitLocker"
+    size: M
+    labels: [type:feature, area:platform, priority:p1, platform:linux]
+    fr: [FR-06]
+    body: |
+      ## Context
+      Explain why Windows partition missing.
+      ## Contract
+      SkipReason enum in coverage.
+      ## Acceptance
+      Given dirty ntfs simulation, When classify, Then reason hibernated documented.
+      ## Platforms
+      linux
+      ## Depends on
+      foreign scan
+      ## Out of scope
+      auto-fix Fast Startup
+  - epic: E-M2
+    title: "Podman docker system df reporting only"
+    size: S
+    labels: [type:feature, area:scan, priority:p1, platform:linux]
+    fr: [FR-04]
+    body: |
+      ## Context
+      Size without walking overlay.
+      ## Contract
+      Optional bollard or CLI parse.
+      ## Acceptance
+      Given podman available, When probe, Then container_storage location row.
+      ## Platforms
+      linux
+      ## Depends on
+      catalog denylist
+      ## Out of scope
+      prune actions
+  - epic: E-M2
+    title: "Integration fixture crate aico-fixtures"
+    size: M
+    labels: [type:task, area:ci, priority:p0, platform:linux]
+    fr: []
+    body: |
+      ## Context
+      Synthetic trees for CI.
+      ## Contract
+      dup-groups, hardlink, hf-symlink fixtures.
+      ## Acceptance
+      Given `cargo test -p aico-fixtures`, When run, Then builds temp trees.
+      ## Platforms
+      linux
+      ## Depends on
+      workspace
+      ## Out of scope
+      real model weights
+
+  - epic: E-M3
+    title: "Tauri 2 app shell and Fedora build docs"
+    size: M
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-20]
+    body: |
+      ## Context
+      ADR 0001 WebKit workarounds.
+      ## Contract
+      apps/desktop runs empty shell.
+      ## Acceptance
+      Given Fedora deps, When `cargo tauri dev`, Then window opens.
+      ## Platforms
+      linux
+      ## Depends on
+      workspace
+      ## Out of scope
+      theming polish
+  - epic: E-M3
+    title: "tauri-specta IPC commands and AppError"
+    size: M
+    labels: [type:feature, area:ui, priority:p0, platform:both]
+    fr: [NFR-04]
+    body: |
+      ## Context
+      Typed frontend contracts.
+      ## Contract
+      list_locations, start_scan, get_duplicates stubs.
+      ## Acceptance
+      Given TS build, When types drift, Then CI fails.
+      ## Platforms
+      both
+      ## Depends on
+      Tauri shell
+      ## Out of scope
+      all commands implemented
+  - epic: E-M3
+    title: "React Overview and Inventory views"
+    size: L
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-20]
+    body: |
+      ## Context
+      Size sorted table virtualized.
+      ## Contract
+      TanStack Table + Virtual; shows three size metrics.
+      ## Acceptance
+      Given 10k row fixture, When scroll, Then responsive UI.
+      ## Platforms
+      linux
+      ## Depends on
+      IPC scan data
+      ## Out of scope
+      edit actions
+  - epic: E-M3
+    title: "Duplicates view with hash progress"
+    size: M
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-10]
+    body: |
+      ## Context
+      Separate hashing state from inventory.
+      ## Contract
+      States size-match, hashing, confirmed.
+      ## Acceptance
+      Given in-progress hash, When view open, Then progress bar updates.
+      ## Platforms
+      linux
+      ## Depends on
+      duplicate builder
+      ## Out of scope
+      delete from UI
+  - epic: E-M3
+    title: "Evidence panel Used by and confidence"
+    size: M
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-08]
+    body: |
+      ## Context
+      Glossary terms in UI.
+      ## Contract
+      Shows rule id and marker path.
+      ## Acceptance
+      Given catalog match, When detail open, Then Confirmed with evidence.
+      ## Platforms
+      linux
+      ## Depends on
+      Inventory
+      ## Out of scope
+      manual graph edit
+  - epic: E-M3
+    title: "Scan coverage screen"
+    size: S
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-09]
+    body: |
+      ## Context
+      Why partition skipped.
+      ## Contract
+      Lists SkipReason entries.
+      ## Acceptance
+      Given foreign unmounted, When view, Then actionable message shown.
+      ## Platforms
+      linux
+      ## Depends on
+      coverage summary
+      ## Out of scope
+      auto-mount
+
+  - epic: E-M4
+    title: "Operations journal and startup reconciler"
+    size: L
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-16, NFR-03]
+    body: |
+      ## Context
+      ADR 0007.
+      ## Contract
+      States and write-ahead steps.
+      ## Acceptance
+      Given crash after Copying, When restart, Then reconciler offers resume or rollback.
+      ## Platforms
+      linux
+      ## Depends on
+      schema
+      ## Out of scope
+      cloud backup
+  - epic: E-M4
+    title: "FsWrite gate ForeignOs Unknown"
+    size: M
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-05]
+    body: |
+      ## Context
+      ADR 0003 enforcement in ops.
+      ## Contract
+      AppError::VolumeReadOnly.
+      ## Acceptance
+      Given foreign path, When trash attempted, Then error not silent.
+      ## Platforms
+      linux
+      ## Depends on
+      journal
+      ## Out of scope
+      Windows ForeignOs from Win side
+  - epic: E-M4
+    title: "Standard action preview component"
+    size: M
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-13]
+    body: |
+      ## Context
+      UX blocker from review.
+      ## Contract
+      Seven preview fields per glossary.
+      ## Acceptance
+      Given cleanup candidate, When preview, Then shows trash vs reclaimable bytes.
+      ## Platforms
+      linux
+      ## Depends on
+      IPC
+      ## Out of scope
+      batch 1000 files perf
+  - epic: E-M4
+    title: "Linux trash integration with preflight"
+    size: M
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-14]
+    body: |
+      ## Context
+      trash crate; same-mount check.
+      ## Contract
+      Journal Trash step before call.
+      ## Acceptance
+      Given fixture file, When trash, Then in freedesktop trash and journal Committed.
+      ## Platforms
+      linux
+      ## Depends on
+      FsWrite gate
+      ## Out of scope
+      polkit root trash
+  - epic: E-M4
+    title: "Regenerable cache purge path"
+    size: M
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-15]
+    body: |
+      ## Context
+      ADR 0005 class regenerable.
+      ## Contract
+      Distinct UI label; optional hf/pip helpers documented.
+      ## Acceptance
+      Given pip cache fixture, When purge confirmed, Then files removed with journal entry.
+      ## Platforms
+      linux
+      ## Depends on
+      preview
+      ## Out of scope
+      network re-download
+  - epic: E-M4
+    title: "Activity view undo trash"
+    size: M
+    labels: [type:feature, area:ui, priority:p0, platform:linux]
+    fr: [FR-16]
+    body: |
+      ## Context
+      Undo preconditions.
+      ## Contract
+      Restore from trash when entry exists.
+      ## Acceptance
+      Given recent trash op, When undo, Then file back at original path.
+      ## Platforms
+      linux
+      ## Depends on
+      trash integration
+      ## Out of scope
+      undo after external trash empty
+  - epic: E-M4
+    title: "Failure injection tests ENOSPC EACCES"
+    size: M
+    labels: [type:task, area:ci, priority:p0, platform:linux]
+    fr: []
+    body: |
+      ## Context
+      Safety testing.
+      ## Contract
+      Fake FsWrite injects errors.
+      ## Acceptance
+      Given ENOSPC on step 3, When op runs, Then journal Failed and source intact.
+      ## Platforms
+      linux
+      ## Depends on
+      journal
+      ## Out of scope
+      hardware pull tests
+
+  - epic: E-M5
+    title: "Directory move engine copy verify symlink"
+    size: L
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-17, FR-18]
+    body: |
+      ## Context
+      ADR 0006 sequence.
+      ## Contract
+      .aico-old rename; verify through old path.
+      ## Acceptance
+      Given models dir fixture cross-subvol, When move, Then symlink resolves and journal Committed.
+      ## Platforms
+      linux
+      ## Depends on
+      journal, M4 gate
+      ## Out of scope
+      single file move
+  - epic: E-M5
+    title: "Location report JSON and Markdown"
+    size: M
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-19]
+    body: |
+      ## Context
+      Survives DB loss.
+      ## Contract
+      ~/.local/share/aicosystem/reports/ and dest mirror.
+      ## Acceptance
+      Given completed move, When read report, Then contains OLLAMA_MODELS hint field optional.
+      ## Platforms
+      linux
+      ## Depends on
+      move engine
+      ## Out of scope
+      auto email
+  - epic: E-M5
+    title: "In-use and Flatpak move preflight"
+    size: M
+    labels: [type:feature, area:ops, priority:p1, platform:linux]
+    fr: [FR-18]
+    body: |
+      ## Context
+      fuser best-effort; flatpak path warning.
+      ## Contract
+      Refuse or warn when process open.
+      ## Acceptance
+      Given open file mock, When move, Then refused with reason.
+      ## Platforms
+      linux
+      ## Depends on
+      move engine
+      ## Out of scope
+      Restart Manager Windows
+  - epic: E-M5
+    title: "Link health check on startup"
+    size: S
+    labels: [type:feature, area:ops, priority:p1, platform:linux]
+    fr: []
+    body: |
+      ## Context
+      Broken links after unmount.
+      ## Contract
+      Alerts in Overview.
+      ## Acceptance
+      Given dangling symlink, When start, Then warning listed.
+      ## Platforms
+      linux
+      ## Depends on
+      location report index
+      ## Out of scope
+      auto repair
+  - epic: E-M5
+    title: "Move undo in Activity"
+    size: M
+    labels: [type:feature, area:ops, priority:p0, platform:linux]
+    fr: [FR-16]
+    body: |
+      ## Context
+      Reverse symlink flow.
+      ## Contract
+      Hash match precondition.
+      ## Acceptance
+      Given committed move fixture, When undo, Then original directory restored.
+      ## Platforms
+      linux
+      ## Depends on
+      move engine
+      ## Out of scope
+      undo after manual edit
+  - epic: E-M5
+    title: "v0.1 packaging RPM AppImage notes"
+    size: M
+    labels: [type:task, area:ci, priority:p1, platform:linux]
+    fr: [NFR-06]
+    body: |
+      ## Context
+      Author distribution.
+      ## Contract
+      docs/packaging/fedora.md.
+      ## Acceptance
+      Given tag, When workflow manual, Then binary artifact attached optional.
+      ## Platforms
+      linux
+      ## Depends on
+      Tauri app complete
+      ## Out of scope
+      Windows installer
+
+  - epic: E-M6
+    title: "Windows volume enumeration and native scan"
+    size: L
+    labels: [type:feature, area:platform, priority:p1, platform:windows]
+    fr: []
+    body: |
+      ## Context
+      M6 parity start.
+      ## Contract
+      aico-platform windows module.
+      ## Acceptance
+      Given windows CI, When scan stub, Then JSON locations for user profile paths.
+      ## Platforms
+      windows
+      ## Depends on
+      M5 release
+      ## Out of scope
+      btrfs read
+  - epic: E-M6
+    title: "Windows junction move directory"
+    size: L
+    labels: [type:feature, area:ops, priority:p1, platform:windows]
+    fr: []
+    body: |
+      ## Context
+      ADR 0006 Windows link type.
+      ## Contract
+      junction crate; privilege probe for symlinks.
+      ## Acceptance
+      Given non-admin CI job, When move fixture, Then junction created or clear error.
+      ## Platforms
+      windows
+      ## Depends on
+      windows platform
+      ## Out of scope
+      file-level junction
+  - epic: E-M6
+    title: "Recycle Bin quota preflight"
+    size: M
+    labels: [type:feature, area:ops, priority:p1, platform:windows]
+    fr: []
+    body: |
+      ## Context
+      Blocker from reviews.
+      ## Contract
+      SHQueryRecycleBinW or equivalent via windows crate.
+      ## Acceptance
+      Given oversized file fixture, When trash, Then blocked not silent delete.
+      ## Platforms
+      windows
+      ## Depends on
+      windows trash adapter
+      ## Out of scope
+      custom quarantine UI
+  - epic: E-M6
+    title: "Import Fedora scan JSON into Windows DB"
+    size: M
+    labels: [type:feature, area:scan, priority:p2, platform:windows]
+    fr: []
+    body: |
+      ## Context
+      Cross-OS inventory without btrfs.
+      ## Contract
+      aico import command.
+      ## Acceptance
+      Given export file, When import, Then foreign rows merged with stamp.
+      ## Platforms
+      windows
+      ## Depends on
+      windows scan
+      ## Out of scope
+      live sync
+  - epic: E-M6
+    title: "Windows non-admin CI test job"
+    size: S
+    labels: [type:task, area:ci, priority:p1, platform:windows]
+    fr: []
+    body: |
+      ## Context
+      Symlink privilege gap.
+      ## Contract
+      Separate workflow job without elevation.
+      ## Acceptance
+      Given workflow, When run, Then junction tests execute.
+      ## Platforms
+      windows
+      ## Depends on
+      CI base
+      ## Out of scope
+      code signing
+
+  - epic: E-ICE
+    title: "Icebox: asset graph and provenance"
+    size: L
+    labels: [type:task, area:docs, priority:p2, platform:both]
+    fr: []
+    body: |
+      ## Context
+      vision.md deferred.
+      ## Contract
+      none
+      ## Acceptance
+      Given future milestone, When prioritized, Then new epic opened.
+      ## Platforms
+      both
+      ## Depends on
+      v0.1
+      ## Out of scope
+      now
+  - epic: E-ICE
+    title: "Icebox: GPU compatibility engine"
+    size: L
+    labels: [type:task, area:docs, priority:p2, platform:both]
+    fr: []
+    body: |
+      ## Context
+      Parked from idea.md P0 mistake.
+      ## Contract
+      none
+      ## Acceptance
+      n/a
+      ## Platforms
+      both
+      ## Depends on
+      v0.1
+      ## Out of scope
+      now
+  - epic: E-ICE
+    title: "Icebox: hardlink reflink dedup same volume"
+    size: M
+    labels: [type:task, area:ops, priority:p2, platform:linux]
+    fr: []
+    body: |
+      ## Context
+      Inventive catalyst pattern.
+      ## Contract
+      FICLONE optional path.
+      ## Acceptance
+      n/a
+      ## Platforms
+      linux
+      ## Depends on
+      v0.1
+      ## Out of scope
+      now
+  - epic: E-ICE
+    title: "Icebox: cross-OS action queue"
+    size: L
+    labels: [type:task, area:platform, priority:p2, platform:both]
+    fr: []
+    body: |
+      ## Context
+      Execute Windows cleanup from Linux plan.
+      ## Contract
+      signed JSON on neutral volume.
+      ## Acceptance
+      n/a
+      ## Platforms
+      both
+      ## Depends on
+      M6
+      ## Out of scope
+      now

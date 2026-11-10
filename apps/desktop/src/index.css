@@ -1,0 +1,16 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #0f1115;
+  color: #e8e8e8;
+}
+
+.app {
+  padding: 2rem;
+}
+
+code {
+  background: #1a1d24;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}

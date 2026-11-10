@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aico-core",
+    "crates/aico-ops",
+    "crates/aico-platform",
+    "crates/aico-cli",
+    "apps/desktop/src-tauri",
+]
+default-members = ["crates/aico-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/mFontecchio/AIcoSystem"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+blake3 = "1"
+ignore = "0.4"
+same-file = "1"
+aico-core = { path = "crates/aico-core" }
+aico-ops = { path = "crates/aico-ops" }
+aico-platform = { path = "crates/aico-platform" }

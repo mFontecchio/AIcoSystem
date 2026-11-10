@@ -1,0 +1,18 @@
+[package]
+name = "aico-core"
+description = "Catalog, scan, hash, and database for AIcoSystem"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+rusqlite.workspace = true
+blake3.workspace = true
+ignore.workspace = true
+same-file.workspace = true
+toml = "0.8"

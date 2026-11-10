@@ -1,0 +1,13 @@
+[[signatures]]
+id = "ollama-models-user"
+owner = "ollama"
+linux_paths = ["~/.ollama/models"]
+markers = ["manifests"]
+movable = true
+
+[[signatures]]
+id = "ollama-models-system"
+owner = "ollama"
+linux_paths = ["/usr/share/ollama/.ollama/models"]
+markers = ["manifests"]
+movable = false
