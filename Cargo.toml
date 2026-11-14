@@ -23,6 +23,7 @@ tracing = "0.1"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite_migration = "1.2"
 blake3 = "1"
 ignore = "0.4"
 same-file = "1"

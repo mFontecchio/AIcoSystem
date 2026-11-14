@@ -1,14 +1,14 @@
 # AIcoSystem v0.1
 
 * **Author:** mfontecchio
-* **Status:** Proposed (see docs/designs/aicosystem-v0.1-design.md)
+* **Status:** Proposed
 * **Date:** 2026-03-24
 
 ---
 
 ## Overview
 
-AIcoSystem is a local-first desktop application that helps one power user understand and reclaim disk space consumed by AI software on a single dual-boot machine. Version 0.1 focuses on discovery, honest size reporting, duplicate detection, reversible cleanup, and directory moves that keep applications working through a symlink at the old path. The product does not replace Ollama, ComfyUI, or container engines; it inventories what is already installed and performs only user-approved file operations on the operating system that is currently booted.
+AIcoSystem is a local-first desktop application that helps one power user understand and reclaim disk space consumed by AI software on a single dual-boot machine. Version 0.1 focuses on discovery, size reporting with coverage transparency, duplicate detection, reversible cleanup, and directory moves that keep applications working through a symlink at the old path. The product does not replace Ollama, ComfyUI, or container engines; it inventories what is already installed and performs only user-approved file operations on the operating system that is currently booted.
 
 The implementation uses a Rust core shared by a CLI and a Tauri 2 desktop shell, with React for the UI and SQLite for local inventory and operation history. Integrations are declared as catalog data (TOML), not as a plugin runtime.
 
@@ -62,11 +62,9 @@ The following are explicitly out of scope for v0.1:
 
 ## Open Questions
 
-- **Volume UUID on Linux:** Use `blkid`, `/dev/disk/by-uuid`, or a stable synthetic id when binding mounts lack a UUID? Choice affects hash cache keys and foreign-volume identity.
-- **NTFS driver behavior:** On the author’s Fedora setup, classify skip reasons for both `ntfs3` and `fuseblk` (ntfs-3g) and document Fast Startup / dirty-volume detection limits.
-- **Reclaimable size on Btrfs with Snapper:** v0.1 warns on snapshots; how much extent sharing detection is required versus a clear “may not free space” disclaimer?
 - **UI theme:** Dark-first with optional light theme was assumed at brainstorm; confirm before polishing M3 screens.
-- **Regenerable purge commands:** Invoke tool CLIs (`pip cache purge`, `huggingface-cli delete-cache`, etc.) versus file-level delete only in v0.1.
+
+**Closed in this revision (see Technical Plan / ADR 0004):** Linux volume `stable_id` via UUID → `dev:{major}:{minor}` → `mp:{hash}`; NTFS skip reason enum; Btrfs reclaimable uses allocated bytes with snapshot disclaimer; regenerable cleanup uses file-level delete in v0.1 (optional CLI purge deferred).
 
 ---
 
@@ -94,7 +92,25 @@ The following are explicitly out of scope for v0.1:
 
 * **Given:** A previous move stopped mid-`Copying` or mid-`SourceRenamed`.
 * **When:** User starts AIcoSystem again.
-* **Then:** Reconciler detects incomplete operation and offers resume or rollback before any new mutation; source data is not silently deleted.
+* **Then:** `aico-ops` reconciler detects incomplete operation and offers resume or rollback before any new mutation; source data is not silently deleted.
+
+### CUJ 5: Cleanup with three byte figures
+
+* **Given:** User selected reclaimable trash candidates on a native writable volume.
+* **When:** User opens cleanup preview.
+* **Then:** Preview shows trash-now bytes, bytes freed only after trash purge, and separate regenerable purge totals with distinct labels; confirm is disabled until all three are acknowledged when non-zero.
+
+### CUJ 6: Foreign NTFS inventory, no writes
+
+* **Given:** Windows NTFS partition mounted read-only under `/run/media/...`.
+* **When:** Scan completes including foreign paths.
+* **Then:** Locations show `writable_actions: false`; cleanup and move actions are hidden or blocked; coverage lists driver-specific skip limits when Fast Startup or dirty volume is detected.
+
+### CUJ 7: Undo trash when journal allows
+
+* **Given:** A completed trash operation with steps in `Committed` or `Undoable`.
+* **When:** User chooses undo and trash volume still mounts.
+* **Then:** Journal runs reverse steps; files restore from freedesktop trash metadata when present; operation row marks `Undone` or surfaces a partial failure with paths.
 
 ---
 
@@ -105,7 +121,7 @@ The following are explicitly out of scope for v0.1:
 1. **Read-only discovery** — Scanning code paths use `FsRead` only (`aico-core` + `aico-platform`). No scan-time writes.
 2. **Gated mutation** — Trash, purge, and move run only in `aico-ops`, after `VolumeClass` and denylist checks (see ADRs in `docs/decisions/`).
 3. **Data-before-code integrations** — New tools are added by TOML under `catalog/`, loaded by `aico-core::catalog`.
-4. **One DB per OS install** — SQLite at `~/.local/share/aicosystem/` on Linux; locations keyed by `(volume_stable_id, relative_path)` (stable id mechanism: open question).
+4. **One DB per OS install** — SQLite at `~/.local/share/aicosystem/` on Linux; locations keyed by `(volume_stable_id, relative_path)` per [ADR 0004](../decisions/0004-identity-and-db-location.md).
 5. **CLI parity** — GUI calls the same Rust APIs as `aico-cli`, not a parallel implementation.
 
 ### Component diagram
@@ -144,6 +160,7 @@ flowchart TB
 sequenceDiagram
   participant User
   participant Scan as ScanOrchestrator
+  participant Plat as Platform
   participant Idx as IndexReaders
   participant Cat as Catalog
   participant Walk as DirectoryWalker
@@ -161,15 +178,30 @@ sequenceDiagram
 
 **Index phase (before deep walk):** Read conda `environments.txt`, Hugging Face `hub` layout markers, Ollama manifest tree, `pyvenv.cfg` hits, optional `podman system df` for size-only container row. **Walk phase:** `ignore::WalkBuilder` with explicit roots, container overlay paths on the denylist, no following symlinks. **Persist:** `locations`, `catalog_matches`, `scan_runs` with JSON coverage blob.
 
+**Denylist (static, v0.1):**
+
+| Category | Paths / rule |
+| -------- | ------------- |
+| Container engines | `/var/lib/docker`, `/var/lib/containers`, user `~/.local/share/containers/storage`, overlay upper/work dirs discovered via mount |
+| Privileged system stores | `/`, `/usr`, `/var/lib` except explicit user cache roots in catalog |
+| Catalog flag | `movable: false` without user override blocks move; does not block scan |
+| Foreign volume | All paths on `VolumeClass::ForeignOs` — scan only |
+
+Additional roots may be merged from `catalog/*.toml` `linux_paths` marked `scan_only: true`.
+
 ### Hash and duplicate pipeline
 
 Group files by size → partial hash first and last 1 MiB → BLAKE3 full hash on survivors → upsert `file_hashes` keyed by file identity and mtime → build duplicate groups. Ollama/Hugging Face blob filenames may supply a **claimed** SHA-256; delete authorization requires verification pass.
 
 ### Operation journal (cleanup and move)
 
-States follow ADR 0007: `Planned` through `Committed`, with rollback paths. Each step row is committed to SQLite before the matching filesystem action. Startup reconciler runs before the UI enables destructive buttons.
+Journal states (ADR 0007): `Planned` → `PreflightOk` → `Executing` → per-step `StepRecorded` → `Committed`; failure `Failed`; user undo `UndoRequested` → `Undone` or `UndoPartial`. Each `operation_steps` row is inserted before the matching filesystem effect.
 
-Move sequence (Linux v0.1, directories only): copy → hash/size verify → rename source to `.aico-old` → symlink at original path → verify through old path → write location report JSON + Markdown.
+**Reconciler (`aico-ops`, not UI-only):** On every process start and before any `FsWrite` call, scan `operations` for non-terminal rows. Block new mutations until the user chooses resume, rollback, or discard (with explicit data-loss warning). Desktop and CLI share the same entry point.
+
+Move sequence (Linux v0.1, directories only): optional same-filesystem rename when destination is sibling on one device; else copy → hash/size verify → rename source to `.aico-old` → symlink at original path → verify through old path → write location report JSON + Markdown.
+
+**Btrfs / Snapper:** `reclaimable_bytes` never exceeds `allocated_bytes`; UI shows snapshot disclaimer when Snapper config is detected (heuristic: `/etc/snapper` or subvolume layout).
 
 ### SQLite schema (v0.1)
 
@@ -183,13 +215,29 @@ Move sequence (Linux v0.1, directories only): copy → hash/size verify → rena
 | `operations` | user-visible operation header |
 | `operation_steps` | journal state machine |
 
+Canonical DDL: [migrations/001_init.sql](../../migrations/001_init.sql). Migrations via `rusqlite_migration` per [docs/appendices/fs-api.md](../appendices/fs-api.md).
+
 No relationship graph tables in v0.1.
 
-### Desktop IPC (planned)
+### Cleanup preview model (seven fields, FR-13)
 
-Tauri commands (typed via `tauri-specta`): `list_volumes`, `start_scan`, `cancel_scan`, `list_locations` (paginated filters), `list_duplicates`, `preview_cleanup`, `execute_cleanup`, `preview_move`, `execute_move`, `list_operations`, `undo_operation`, `get_coverage`.
+1. `operation_kind` — `trash` | `purge_regenerable` | `move_dir`
+2. `paths` — ordered list of affected relative paths with volume id
+3. `bytes_trash_now` — sum sent to trash on confirm
+4. `bytes_after_trash_purge` — additional space after user empties trash
+5. `bytes_regenerable_purge` — direct unlink regenerable caches (labeled)
+6. `references` — catalog signature ids and duplicate group ids implicated
+7. `undo_constraints` — max undo window, journal id, foreign/read-only blockers
+
+### Desktop IPC
+
+**M3 (read-only):** `list_volumes`, `start_scan`, `cancel_scan`, `list_locations`, `list_duplicates`, `get_coverage`, `list_operations` (read). `cancel_scan` stops walk/hash cooperatively; partial run is persisted with `status: cancelled` (see [scan JSON schema](../api/scan-json-schema.md)).
+
+**M4+ (mutations):** `preview_cleanup`, `execute_cleanup`, `preview_move`, `execute_move`, `undo_operation`.
 
 Progress: `Channel` events `scan_progress { phase, bytes_done, files_done }` capped ~10 Hz. Errors: `AppError` enum with stable string codes serialized to the UI.
+
+CLI parity: `aico scan --json` matches `docs/api/scan-json-schema.md` including `duplicates` when hash phase finished.
 
 ### Platform scope
 
@@ -203,16 +251,34 @@ Progress: `Channel` events `scan_progress { phase, bytes_done, files_done }` cap
 
 ### Security and privacy
 
-No network for core features. Capabilities file allows only registered commands (no broad `fs` plugin writes from frontend). Discovery never executes arbitrary shell from catalog entries in v0.1.
+No network for core features. Capabilities file allows only registered commands (no broad `fs` plugin writes from frontend). Discovery may invoke a fixed allowlist: `podman system df`, `docker system df` (when socket present), and `blkid -o export` for volume id — no arbitrary shell from catalog strings.
+
+**Optional v0.1:** Export read-only “foreign duplicate cleanup plan” JSON (paths visible from Fedora, actions to run on Windows) without executing cross-OS mutations.
 
 ### Non-Functional Requirements (critical)
 
 | ID | Requirement | Approach |
 | -- | ----------- | -------- |
 | NFR-01 | Scan is read-only | `FsRead` boundary |
-| NFR-03 | Safe DB migrate | forward-only migrations; refuse newer schema |
+| NFR-02 | Hash cache correctness | Keys include `volume_stable_id`, inode, size, mtime; invalidate on id change |
+| NFR-03 | Safe DB migrate | `rusqlite_migration`; forward-only; refuse newer schema; no migrate with open journal |
+| NFR-04 | Operation durability | WAL SQLite; journal step before FS effect |
 | NFR-05 | UI responsive on large inventories | pagination + virtualized tables |
 | NFR-06 | Fedora packaging | RPM/AppImage docs; not Flatpak |
+
+---
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| ---- | ------ | ---------- |
+| Full-disk scan duration / UI freeze | Poor UX on 2M+ files | Bounded worker pool; incremental DB batch writes; cancel scan; hash pass resumable from cache |
+| Journal crash mid-move | Orphan copies, dangling symlinks | Reconciler on startup; explicit resume/rollback; `.aico-old` never auto-deleted |
+| NTFS hibernate / dirty | Wrong sizes or mount refusal | Skip enum in coverage; read-only mount enforcement; no write UI |
+| Btrfs extent sharing | User expects more free space than trash yields | Cap reclaimable at allocated; Snapper disclaimer |
+| Symlink move failure after rename | App sees `.aico-old` path | Verify through symlink before `Committed`; rollback restores rename |
+| SQLite growth | Large `file_hashes` table | Partial hash gate; prune cache entries older than N scans; VACUUM documented in ops guide |
+| Volume id change | Stale duplicate cache | Detect `stable_id` drift; purge hashes for volume |
 
 ---
 
@@ -222,296 +288,108 @@ No network for core features. Capabilities file allows only registered commands 
 
 * **Pros:** Single long-term vision; rich enterprise feature set.
 * **Cons:** Roughly 9–15 months at 15–20 h/week for one developer; ship date far past the author’s immediate need (full disk).
-* **Reason for rejection:** Rejected by author after Goldfish review: prove scan + safe cleanup first.
+* **Reason for rejection:** Scope exceeds v0.1 capacity; [ADR 0001](../decisions/0001-stack.md) four-crate layout chosen instead.
 
 ### Alternative B: Rely on Stability Matrix + czkawka only
 
 * **Pros:** Less code; known tools for shared models and duplicates.
 * **Cons:** AGPL on Stability Matrix; no unified AI catalog (Ollama, HF, conda); no dual-boot read-only inventory; no move-with-link journal.
-* **Reason for rejection:** Rejected by author: does not cover the whole problem statement.
+* **Reason for rejection:** No unified catalog or dual-boot read-only inventory ([PRD](../product/prd-v1.md) FR-01–FR-06).
 
 ### Alternative C: Config rewriting on move
 
 * **Pros:** Apps that resolve real paths might work without symlinks; matches some enterprise asset managers.
 * **Cons:** Highest breakage risk; per-app config formats; must run on the OS that owns the config; contradicts v0.1 safety stance.
-* **Reason for rejection:** Rejected by author: excluded in favor of symlink/junction plus location report (ADR 0010).
+* **Reason for rejection:** Excluded in favor of symlink/junction plus location report ([ADR 0010](../decisions/0010-no-config-rewrite.md)).
 
 ### Alternative D: Single shared SQLite on a neutral NTFS data partition
 
 * **Pros:** One inventory across boots.
 * **Cons:** Stale rows after moves on one OS; lock and migration races; writes to foreign partition unsafe from Fedora.
-* **Reason for rejection:** Rejected by author: one DB per OS install with export/import deferred to M6.
+* **Reason for rejection:** One DB per OS install ([ADR 0004](../decisions/0004-identity-and-db-location.md)); export/import deferred to M6.
 
 ### Alternative E: SQLx async SQLite
 
 * **Pros:** Async queries integrate with some Rust web patterns.
 * **Cons:** Extra CI setup (`DATABASE_URL` / offline data); async overhead for local single-writer store.
-* **Reason for rejection:** Rejected by author: `rusqlite` bundled + dedicated writer thread (ADR 0001).
+* **Reason for rejection:** `rusqlite` bundled + dedicated writer thread ([ADR 0001](../decisions/0001-stack.md)).
 
 ### Alternative F: Immediate permanent delete for cleanup
 
 * **Pros:** Frees disk space immediately on a full volume.
 * **Cons:** Breaks “reversible by default”; user fear on large model files.
-* **Reason for rejection:** Rejected by author: trash-first with explicit purge; regenerable caches labeled separately (ADR 0005).
+* **Reason for rejection:** Trash-first with explicit purge ([ADR 0005](../decisions/0005-cleanup-trash-classes.md)).
 
 ### Alternative G: Windows-first dual-boot scanner
 
 * **Pros:** Matches users who live primarily in Windows.
 * **Cons:** Windows cannot read Fedora Btrfs; cross-partition value mostly Linux → NTFS anyway.
-* **Reason for rejection:** Rejected by author: Fedora-first development and read-only NTFS observation (ADR 0002).
+* **Reason for rejection:** Fedora-first development and read-only NTFS observation ([ADR 0002](../decisions/0002-foreign-os-access.md)).
 
 ---
 
 ## Detailed Implementation Plan
 
-Work proceeds in milestone order **M0 → M1 → M2 → M3 → M4 → M5** (M6 post-release). Each milestone should leave CI green on the crates it touches. GitHub issues live in `docs/backlog/issues.yaml` (already mirrored to GitHub).
+Milestone order **M0 → M5** (M6 post-release). Task-level work is tracked in [docs/backlog/issues.yaml](../backlog/issues.yaml) and GitHub; this section lists **exit gates** only.
 
-### M0 — Foundation (current scaffold → complete)
+### M0 — Foundation (narrow scope)
 
-#### `Cargo.toml` (Modify)
+| Exit gate | Evidence |
+| --------- | -------- |
+| Workspace builds on Fedora CI | `cargo build --workspace` green |
+| `volume_stable_id` implemented | [ADR 0004](../decisions/0004-identity-and-db-location.md); platform unit test |
+| Schema v1 applied | [migrations/001_init.sql](../../migrations/001_init.sql) + migration test via `rusqlite_migration` |
+| Catalog loads | All `catalog/*.toml` parse; spike script runs |
+| Desktop shell compiles | Tauri icons present; `list_volumes` IPC |
 
-* **Scope:** Workspace manifest.
-* **Changes:** Pin workspace dependency versions; add missing crates (`aico-fixtures` when created); document MSRV in comment pointing to `rust-toolchain.toml`.
-
-#### `rust-toolchain.toml` (Modify)
-
-* **Scope:** Toolchain pin.
-* **Changes:** Align channel with CI and author machine after first successful local build.
-
-#### `crates/aico-core/` (Modify)
-
-* **Scope:** Domain, catalog, DB, scan modules.
-* **Changes:** Split `lib.rs` into `catalog`, `db/migrate`, `scan/orchestrator` stubs; implement `CatalogSignature` types matching TOML schema; add `open_db()` with migration guard.
-
-#### `crates/aico-platform/` (Modify)
-
-* **Scope:** Linux volume enumeration.
-* **Changes:** Replace placeholder `linux:{mount_point}` uuid with stable id spike (pending open question); parse `/proc/self/mountinfo`; classify `VolumeClass`; expose `FsRead` trait.
-
-#### `crates/aico-ops/` (Modify)
-
-* **Scope:** Mutation boundary stubs.
-* **Changes:** Define `FsWrite` trait and `assert_writable()`; journal module empty impl returning `NotImplemented` until M4.
-
-#### `crates/aico-cli/` (Modify)
-
-* **Scope:** CLI entry.
-* **Changes:** Flesh out `scan` subcommand to call orchestrator; global `--db` path flag defaulting to XDG data dir.
-
-#### `catalog/*.toml` (Modify)
-
-* **Scope:** Integration data.
-* **Changes:** Expand paths for author machine (Flatpak hints, torch hub, `~/.cache/torch`); add `windows_paths` optional fields for future M6; document schema in `catalog/schema.toml`.
-
-#### `scripts/catalog-spike.sh` (Modify)
-
-* **Scope:** Validation script.
-* **Changes:** Parse all `linux_paths` from TOML via simple grep or small Rust helper; output JSON comparable to `dua`.
-
-#### `migrations/001_init.sql` (Create)
-
-* **Scope:** SQLite schema v1.
-* **Changes:** Seven tables as in Technical Plan; `user_version` protocol documented in `aico-core`.
-
-#### `apps/desktop/` (Modify)
-
-* **Scope:** Tauri shell only in M0.
-* **Changes:** Add app icons under `src-tauri/icons/` so bundle config validates; wire `WEBKIT_DISABLE_DMABUF_RENDERER` guard in `main` when NVIDIA+Wayland detected (platform module callback).
-
-#### `.github/workflows/ci.yml` (Modify)
-
-* **Scope:** CI.
-* **Changes:** Fail Tauri job on compile error once icons exist; add `cargo test` for migration tests.
-
-#### `docs/decisions/*.md` (Modify)
-
-* **Scope:** ADRs.
-* **Changes:** Update ADR 0004 when volume id mechanism is chosen.
+Not in M0: full scan walk, hash pipeline, journal mutations, format sniffing.
 
 ### M1 — Read-only scan CLI
 
-#### `crates/aico-core/src/scan/walker.rs` (Create)
+| Exit gate | Evidence |
+| --------- | -------- |
+| End-to-end scan on fixtures | `aico scan --json` matches [scan-json-schema.md](../api/scan-json-schema.md) |
+| Sizing + coverage | Apparent/allocated/reclaimable; denylist skips logged |
+| Index readers | Conda, HF, Ollama, venv markers produce catalog rows |
+| Cancellation | Partial `cancelled` run persisted |
 
-* **Scope:** Parallel walk.
-* **Changes:** `ignore::WalkBuilder`; denylist for container roots; record `EACCES` paths.
-
-#### `crates/aico-core/src/scan/index.rs` (Create)
-
-* **Scope:** Index-first discovery.
-* **Changes:** Readers for conda, HF hub layout, Ollama manifests, venv markers.
-
-#### `crates/aico-core/src/scan/sizing.rs` (Create)
-
-* **Scope:** Metrics.
-* **Changes:** Apparent, allocated (`st_blocks`), reclaimable via inode dedup (`same-file`).
-
-#### `crates/aico-core/src/scan/orchestrator.rs` (Create)
-
-* **Scope:** Scan coordinator.
-* **Changes:** Phases, cancellation, persist `scan_runs` and `locations`.
-
-#### `crates/aico-core/src/format/sniff.rs` (Create)
-
-* **Scope:** Model headers.
-* **Changes:** GGUF and SafeTensors limited parse with size caps (no large array loads).
-
-#### `docs/api/scan-json-schema.md` (Create)
-
-* **Scope:** CLI contract.
-* **Changes:** Document `aico scan --json` output for UI and tests.
-
-#### `crates/aico-fixtures/` (Create)
-
-* **Scope:** Test trees.
-* **Changes:** Build temp dirs: unreadable subdir, hardlink pair, fake HF symlink layout.
-
-#### `crates/aico-cli/src/main.rs` (Modify)
-
-* **Scope:** CLI.
-* **Changes:** Implement scan output per schema.
+Format sniff (GGUF/SafeTensors) deferred to M5 or later unless needed for a release acceptance test.
 
 ### M2 — Duplicates and foreign NTFS
 
-#### `crates/aico-core/src/hash/staged.rs` (Create)
+| Exit gate | Evidence |
+| --------- | -------- |
+| Staged hash + cache | ADR 0008 pipeline; duplicates array in scan JSON |
+| Foreign volume rules | `writable_actions: false`; skip reasons in coverage |
+| Container row | Optional `podman`/`docker` allowlisted size summary |
 
-* **Scope:** Hash pipeline ADR 0008.
-* **Changes:** Size bucket, partial 1 MiB ends, BLAKE3, cache integration.
+### M3 — Desktop viewer (read-only IPC)
 
-#### `crates/aico-core/src/hash/claimed.rs` (Create)
-
-* **Scope:** Ollama/HF filename digests.
-* **Changes:** Verify-before-delete helper.
-
-#### `crates/aico-core/src/scan/foreign_ntfs.rs` (Create)
-
-* **Scope:** Foreign volume scan rules.
-* **Changes:** Read-only enforcement flag on locations; skip reason enums.
-
-#### `crates/aico-platform/src/linux/ntfs.rs` (Create)
-
-* **Scope:** NTFS skip detection.
-* **Changes:** Best-effort dirty/hibernate signals from mount flags and optional `ntfsfix -n` avoidance (read-only checks only).
-
-#### `crates/aico-platform/src/linux/containers.rs` (Create)
-
-* **Scope:** Podman/Docker size.
-* **Changes:** Optional socket/API probe; single summary location row.
-
-#### `crates/aico-cli/src/main.rs` (Modify)
-
-* **Scope:** CLI.
-* **Changes:** `scan --duplicates` or include duplicate section in JSON.
-
-### M3 — Desktop viewer
-
-#### `apps/desktop/package.json` (Modify)
-
-* **Scope:** Frontend deps.
-* **Changes:** Add `@tanstack/react-table`, `@tanstack/react-virtual`, `@tauri-apps/api` as needed.
-
-#### `apps/desktop/src/features/inventory/` (Create)
-
-* **Scope:** UI.
-* **Changes:** Virtualized table for locations; size columns; filter by class and used-by.
-
-#### `apps/desktop/src/features/duplicates/` (Create)
-
-* **Scope:** UI.
-* **Changes:** Group list, hash progress states.
-
-#### `apps/desktop/src/features/coverage/` (Create)
-
-* **Scope:** UI.
-* **Changes:** Skipped volume reasons.
-
-#### `apps/desktop/src-tauri/src/commands.rs` (Create)
-
-* **Scope:** IPC.
-* **Changes:** Commands listed in Technical Plan; integrate `tauri-specta`.
-
-#### `apps/desktop/src-tauri/src/lib.rs` (Modify)
-
-* **Scope:** Wiring.
-* **Changes:** Register commands and progress Channel.
-
-#### `apps/desktop/src-tauri/capabilities/default.json` (Modify)
-
-* **Scope:** Security.
-* **Changes:** Least privilege; no raw filesystem scope for webview.
+| Exit gate | Evidence |
+| --------- | -------- |
+| Inventory + duplicates UI | Virtualized tables; hash progress |
+| IPC M3 subset only | No cleanup/move commands registered yet |
+| Coverage screen | Skipped volume reasons |
 
 ### M4 — Reversible cleanup
 
-#### `crates/aico-ops/src/journal.rs` (Create)
-
-* **Scope:** State machine ADR 0007.
-* **Changes:** Write-ahead steps, reconciler on startup.
-
-#### `crates/aico-ops/src/trash/linux.rs` (Create)
-
-* **Scope:** Freedesktop trash.
-* **Changes:** `trash` crate wrapper + same-device preflight.
-
-#### `crates/aico-ops/src/purge/regenerable.rs` (Create)
-
-* **Scope:** Cache class.
-* **Changes:** File-level delete or documented external CLI invocation per user confirmation.
-
-#### `crates/aico-ops/src/preview.rs` (Create)
-
-* **Scope:** Shared preview model.
-* **Changes:** Seven preview fields for UI (paths, three byte metrics, references, undo limits).
-
-#### `apps/desktop/src/features/cleanup/` (Create)
-
-* **Scope:** UI.
-* **Changes:** Preview modal, confirm, Activity list.
-
-#### `crates/aico-ops/tests/crash_inject.rs` (Create)
-
-* **Scope:** Safety tests.
-* **Changes:** Fake `FsWrite` failures at defined journal states.
+| Exit gate | Evidence |
+| --------- | -------- |
+| Journal + reconciler | ADR 0007; crash-inject tests |
+| Preview struct | Seven fields in Technical Plan |
+| Trash + regenerable purge | File-level regenerable delete default |
 
 ### M5 — Move with link and release
 
-#### `crates/aico-ops/src/move_dir.rs` (Create)
+| Exit gate | Evidence |
+| --------- | -------- |
+| Move journal | `.aico-old`, symlink verify, location report |
+| PRD acceptance 1–7 | [prd-v1.md](../product/prd-v1.md) manual checklist |
+| Packaging doc | `docs/packaging/fedora.md` |
 
-* **Scope:** Linux directory move ADR 0006.
-* **Changes:** Copy, verify, `.aico-old`, symlink, report generation.
+### M6 (post v0.1)
 
-#### `crates/aico-ops/src/report.rs` (Create)
-
-* **Scope:** Location report.
-* **Changes:** JSON + Markdown to app dir and destination mirror; optional env var hints from catalog.
-
-#### `crates/aico-ops/src/preflight.rs` (Create)
-
-* **Scope:** Denylist and in-use checks.
-* **Changes:** `fuser` best-effort, Flatpak path warning.
-
-#### `crates/aico-ops/src/link_health.rs` (Create)
-
-* **Scope:** Startup checks.
-* **Changes:** Detect dangling symlinks from prior moves.
-
-#### `docs/packaging/fedora.md` (Create)
-
-* **Scope:** Release.
-* **Changes:** RPM/AppImage build notes, WebKit deps, NVIDIA env vars.
-
-#### `apps/desktop/src/features/activity/` (Create)
-
-* **Scope:** UI.
-* **Changes:** Undo when journal + OS allow.
-
-### M6 (post v0.1) — Windows native
-
-#### `crates/aico-platform/src/windows/` (Create)
-
-* **Scope:** Volumes, junction moves, Recycle Bin quota.
-
-#### `crates/aico-cli/src/import.rs` (Create)
-
-* **Scope:** Import scan JSON from Fedora export.
+Windows native volumes, junction moves, Recycle Bin preflight, scan JSON import between OS installs.
 
 ### Files intentionally not changed in v0.1
 

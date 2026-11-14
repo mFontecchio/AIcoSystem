@@ -14,7 +14,7 @@ Tables `operations` and `operation_steps`.
 States: `Planned` → `Copying` → `Verified` → `SourceRenamed` → `LinkCreated` → `Committed` (+ `RollingBack` / `RolledBack` / `Failed`).
 
 - Persist step **before** filesystem effect (write-ahead).
-- On startup, reconciler runs before UI accepts mutations.
+- `aico-ops::reconcile_pending_operations()` runs on process start and before every `FsWrite` call; desktop and CLI share this gate.
 - Never delete source; use `.aico-old` until commit.
 - Undo checks destination hash vs journal and old path occupancy.
 

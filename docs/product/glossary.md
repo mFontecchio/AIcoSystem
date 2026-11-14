@@ -47,3 +47,12 @@ Post-scan list of scanned roots, skipped volumes, and denied paths.
 
 **Claimed hash**  
 Digest implied by filename (Ollama/HF blob). Must be verified before delete authorizes.
+
+**Denylist**  
+Paths where the app never writes: container graph and layer stores, Docker/Podman state, system-owned mounts (flatpak runtime paths flagged separately), and any path marked `movable: false` in the catalog without an explicit user override.
+
+**`.aico-old`**  
+Suffix applied when renaming the original directory before placing a symlink at the old path during a move; leftover data lives under that name until the user trashes it.
+
+**`dua`**  
+Third-party disk usage analyzer CLI (Oledom) used as an acceptance baseline: compare catalog-root attributed bytes to ~90% of `dua` totals on the author machine ([prd-v1.md](prd-v1.md)).

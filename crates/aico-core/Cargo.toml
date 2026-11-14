@@ -12,6 +12,7 @@ thiserror.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 rusqlite.workspace = true
+rusqlite_migration.workspace = true
 blake3.workspace = true
 ignore.workspace = true
 same-file.workspace = true
